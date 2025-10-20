@@ -1,6 +1,198 @@
+using System.Diagnostics;
+using NLog;
+using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+
 namespace DDR;
 
-public class Game
+public class Game : GameWindow
 {
+    private static readonly Logger log = LogManager.GetCurrentClassLogger();
+    public IResourceMannager ResourceMannager { get; private set; }
+    public ModelLoader ModelLoader { get; private set; }
+    public Model World { get; private set; }
+    public Camera camera;
+    public Player player;
+    public Game()
+        : base(GameWindowSettings.Default, new NativeWindowSettings()
+        {
+            Size = new Vector2i(800, 600), Title = "Game", Flags = ContextFlags.Default, Vsync = VSyncMode.On
+        })
+    {
+        Resize += OnResize;
+        ResourceMannager = new DevResourceMannager("../../../assets");
+        ModelLoader = new ModelLoader(ResourceMannager);
+        camera = new Camera();
+        player = new Player()
+        {
+            Model = ModelLoader.Load(ResourceLocation.ParseOrThrow("core:player")),
+            Position = new Vector3(0, 1, 0),
+            AABB = new AABB()
+            {
+                Min = new Vector3(-1, 0, -1),
+                Max = new Vector3(1, 1, 1),
+            }
+        };
+    }
     
+    public Shader WorldShader { get; private set; }
+
+    private Stopwatch sw;
+    protected override void OnLoad()
+    {
+        GL.Enable(EnableCap.DepthTest);
+        
+        WorldShader = new Shader(ResourceMannager.ReadToEndOrThrow(ResourceMannager["core:shaders/world/vertex.glsl"]), ResourceMannager.ReadToEndOrThrow(ResourceMannager["core:shaders/world/fragment.glsl"]), ResourceMannager);
+
+        World = ModelLoader.Load(ResourceLocation.ParseOrThrow("core:world"));
+        
+        CursorState = CursorState.Grabbed;
+        sw = Stopwatch.StartNew();
+        base.OnLoad();
+    }
+    
+    private static void OnResize(ResizeEventArgs e)
+    {
+        GL.Viewport(0, 0, e.Width, e.Height);
+    }
+
+    private float _pitch = 0;
+    private float _yaw = 0;
+    private bool _firstMouse = true;
+    private float _speed = 12.5f;
+    private float _sensitivity = 0.1f;
+    private Vector2 _lastMousePos;
+    const double tickInterval = 1000.0 / 30.0;
+
+    private void Tick()
+    {
+        player.Velocity += new Vector3(0, 0, (float)0.02);
+        player.Tick();
+    }
+    
+    protected override void OnUpdateFrame(FrameEventArgs args)
+    {
+        if (sw.ElapsedMilliseconds >= tickInterval)
+        {
+            sw.Restart();
+            Tick();
+        }
+        
+        
+        if (KeyboardState.IsKeyPressed(Keys.Escape))
+        {
+            CursorState = CursorState.Normal;
+            _firstMouse = true;
+        }
+        if (MouseState.IsButtonPressed(MouseButton.Left))
+        {
+            CursorState = CursorState.Grabbed;
+            _firstMouse = true;
+        }
+
+        if (CursorState != CursorState.Grabbed)
+            return;
+
+        var mouse = MousePosition;
+        if (_firstMouse)
+        {
+            _lastMousePos = mouse;
+            _firstMouse = false;
+        }
+
+        var xOffset = mouse.X - _lastMousePos.X;
+        var yOffset = _lastMousePos.Y - mouse.Y;
+        _lastMousePos = mouse;
+
+        xOffset *= _sensitivity;
+        yOffset *= _sensitivity;
+
+        _yaw += xOffset;
+        _pitch += yOffset;
+        _pitch = Math.Clamp(_pitch, -89f, 89f);
+
+        Vector3 front;
+        front.X = MathF.Cos(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch));
+        front.Y = MathF.Sin(MathHelper.DegreesToRadians(_pitch));
+        front.Z = MathF.Sin(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch));
+        camera.CameraFront = Vector3.Normalize(front);
+
+        var velocity = _speed * (float)args.Time;
+        if (KeyboardState.IsKeyDown(Keys.W)) camera.Position += camera.CameraFront * velocity;
+        if (KeyboardState.IsKeyDown(Keys.S)) camera.Position -= camera.CameraFront * velocity;
+        if (KeyboardState.IsKeyDown(Keys.A)) camera.Position -= Vector3.Normalize(Vector3.Cross(camera.CameraFront, camera.CameraUp)) * velocity;
+        if (KeyboardState.IsKeyDown(Keys.D)) camera.Position += Vector3.Normalize(Vector3.Cross(camera.CameraFront, camera.CameraUp)) * velocity;
+        
+        if (KeyboardState.IsKeyDown(Keys.Space)) camera.Position += new Vector3(0, 1, 0) * velocity / 2;
+        if (KeyboardState.IsKeyDown(Keys.LeftShift)) camera.Position += new Vector3(0, -1, 0) * velocity / 2;
+        
+        camera.UpdateCameraVectors(_yaw, _pitch);
+        log.Info("pitch: " + _pitch + " yaw: " + _yaw);
+        base.OnUpdateFrame(args);
+    }
+    
+    protected override void OnRenderFrame(FrameEventArgs args)
+    {
+        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+        //camera.Position = player.Position + new Vector3(-1, 2, 0);
+        
+        WorldShader.Use();
+        
+        var view = Matrix4.LookAt(camera.Position, camera.Position + camera.CameraFront, camera.CameraUp);
+        var proj = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(45f), Size.X / (float)Size.Y, 0.1f, 100f);
+        
+        WorldShader.SetMatrix4("view", view);
+        WorldShader.SetMatrix4("projection", proj);
+        WorldShader.SetVector3("cam", camera.Position);
+        
+        var loc = GL.GetUniformLocation(WorldShader.Handle, "model");
+        var world_position = GL.GetUniformLocation(WorldShader.Handle, "world_position");
+        var color = GL.GetUniformLocation(WorldShader.Handle, "color");
+
+        {
+            var _color = new Vector3(255, 255, 255);
+            var _position = new Vector3(0, 0, 0);
+        
+            var objectMatrix = Matrix4.CreateTranslation(0, 0, 0);
+            GL.UniformMatrix4f(loc, 1, false, ref objectMatrix);
+            GL.Uniform3f(world_position, 1, ref _position);
+            GL.Uniform3f(color, 1, ref _color);
+            
+            GL.BindVertexArray(World._vao);
+
+            GL.DrawElements(PrimitiveType.LineStrip, World.indices.Length*2, DrawElementsType.UnsignedInt, 0);
+        }
+
+        {
+            var _color = new Vector3(255, 0, 0);
+        
+            var objectMatrix = Matrix4.CreateTranslation(0, 0, 0);
+            GL.UniformMatrix4f(loc, 1, false, ref objectMatrix);
+            GL.Uniform3f(world_position, 1, ref player.Position);
+            GL.Uniform3f(color, 1, ref _color);
+            
+            GL.BindVertexArray(player.Model._vao);
+
+            GL.DrawElements(PrimitiveType.LineStrip, player.Model.indices.Length*2, DrawElementsType.UnsignedInt, 0);
+        }
+        
+        {
+            var _color = new Vector3(255, 0, 0);
+        
+            var objectMatrix = Matrix4.CreateTranslation(0, 0, 0);
+            GL.UniformMatrix4f(loc, 1, false, ref objectMatrix);
+            GL.Uniform3f(world_position, 1, ref player.Position);
+            GL.Uniform3f(color, 1, ref _color);
+            
+            GL.BindVertexArray(player.Model._vao);
+
+            GL.DrawElements(PrimitiveType.LineStrip, player.Model.indices.Length*2, DrawElementsType.UnsignedInt, 0);
+        }
+        
+        SwapBuffers();
+        base.OnRenderFrame(args);
+    }
 }

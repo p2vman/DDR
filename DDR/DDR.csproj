@@ -7,4 +7,14 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+      <PackageReference Include="NLog" Version="6.0.5" />
+      <PackageReference Include="OpenTK" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Audio" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Mathematics" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Windowing.Common" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Windowing.Desktop" Version="5.0.0-pre.15" />
+    </ItemGroup>
+
 </Project>
