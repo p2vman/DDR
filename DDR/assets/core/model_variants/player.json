@@ -1,0 +1,6 @@
+{
+  "Variants": {
+    "idle": "core:player_idle",
+    "move": "core:player_move"
+  }
+}

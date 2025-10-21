@@ -13,7 +13,8 @@ public class Game : GameWindow
     private static readonly Logger log = LogManager.GetCurrentClassLogger();
     public IResourceMannager ResourceMannager { get; private set; }
     public ModelLoader ModelLoader { get; private set; }
-    public Model World { get; private set; }
+    public List<GameObject> WorldLayer = [];
+    
     public Camera camera;
     public Player player;
     public Game()
@@ -28,13 +29,14 @@ public class Game : GameWindow
         camera = new Camera();
         player = new Player()
         {
-            Model = ModelLoader.Load(ResourceLocation.ParseOrThrow("core:player")),
+            Model = ModelLoader.LoadVariant(ResourceLocation.ParseOrThrow("core:player")),
             Position = new Vector3(0, 1, 0),
             AABB = new AABB()
             {
                 Min = new Vector3(-1, 0, -1),
                 Max = new Vector3(1, 1, 1),
-            }
+            },
+            Velocity = new Vector3(0, 0, (float)0.01)
         };
     }
     
@@ -47,7 +49,11 @@ public class Game : GameWindow
         
         WorldShader = new Shader(ResourceMannager.ReadToEndOrThrow(ResourceMannager["core:shaders/world/vertex.glsl"]), ResourceMannager.ReadToEndOrThrow(ResourceMannager["core:shaders/world/fragment.glsl"]), ResourceMannager);
 
-        World = ModelLoader.Load(ResourceLocation.ParseOrThrow("core:world"));
+        WorldLayer.Add(new StaticObject()
+        {
+            Position = new Vector3(0, 0, 0),
+            Model = ModelLoader.Load(ResourceLocation.ParseOrThrow("core:world"))
+        });
         
         CursorState = CursorState.Grabbed;
         sw = Stopwatch.StartNew();
@@ -67,10 +73,21 @@ public class Game : GameWindow
     private Vector2 _lastMousePos;
     const double tickInterval = 1000.0 / 30.0;
 
+    private long ticks = 0;
+
     private void Tick()
     {
-        player.Velocity += new Vector3(0, 0, (float)0.02);
-        player.Tick();
+        ticks++;
+        player.Tick(this);
+
+        if (ticks % 30 == 0)
+        {
+            player.state = "move";
+        }
+        if (ticks % 20 == 0)
+        {
+            player.state = "idle";
+        }
     }
     
     protected override void OnUpdateFrame(FrameEventArgs args)
@@ -130,7 +147,7 @@ public class Game : GameWindow
         if (KeyboardState.IsKeyDown(Keys.LeftShift)) camera.Position += new Vector3(0, -1, 0) * velocity / 2;
         
         camera.UpdateCameraVectors(_yaw, _pitch);
-        log.Info("pitch: " + _pitch + " yaw: " + _yaw);
+        //log.Info("pitch: " + _pitch + " yaw: " + _yaw);
         base.OnUpdateFrame(args);
     }
     
@@ -152,18 +169,20 @@ public class Game : GameWindow
         var world_position = GL.GetUniformLocation(WorldShader.Handle, "world_position");
         var color = GL.GetUniformLocation(WorldShader.Handle, "color");
 
+
+        foreach (var GObject in WorldLayer)
         {
+            
             var _color = new Vector3(255, 255, 255);
-            var _position = new Vector3(0, 0, 0);
         
             var objectMatrix = Matrix4.CreateTranslation(0, 0, 0);
             GL.UniformMatrix4f(loc, 1, false, ref objectMatrix);
-            GL.Uniform3f(world_position, 1, ref _position);
+            GL.Uniform3f(world_position, 1, ref GObject.Position);
             GL.Uniform3f(color, 1, ref _color);
             
-            GL.BindVertexArray(World._vao);
+            GL.BindVertexArray(GObject.Model._vao);
 
-            GL.DrawElements(PrimitiveType.LineStrip, World.indices.Length*2, DrawElementsType.UnsignedInt, 0);
+            GL.DrawElements(PrimitiveType.LineStrip, GObject.Model.indices.Length*2, DrawElementsType.UnsignedInt, 0);
         }
 
         {
@@ -174,22 +193,11 @@ public class Game : GameWindow
             GL.Uniform3f(world_position, 1, ref player.Position);
             GL.Uniform3f(color, 1, ref _color);
             
-            GL.BindVertexArray(player.Model._vao);
-
-            GL.DrawElements(PrimitiveType.LineStrip, player.Model.indices.Length*2, DrawElementsType.UnsignedInt, 0);
-        }
-        
-        {
-            var _color = new Vector3(255, 0, 0);
-        
-            var objectMatrix = Matrix4.CreateTranslation(0, 0, 0);
-            GL.UniformMatrix4f(loc, 1, false, ref objectMatrix);
-            GL.Uniform3f(world_position, 1, ref player.Position);
-            GL.Uniform3f(color, 1, ref _color);
+            var model = player.Model.Variants[player.state];
             
-            GL.BindVertexArray(player.Model._vao);
+            GL.BindVertexArray(model._vao);
 
-            GL.DrawElements(PrimitiveType.LineStrip, player.Model.indices.Length*2, DrawElementsType.UnsignedInt, 0);
+            GL.DrawElements(PrimitiveType.LineStrip, model.indices.Length*2, DrawElementsType.UnsignedInt, 0);
         }
         
         SwapBuffers();

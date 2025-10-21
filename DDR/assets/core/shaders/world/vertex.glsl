@@ -7,8 +7,6 @@ uniform mat4 projection;
 
 uniform vec3 world_position;
 uniform vec3 cam;
-vec3 center = vec3(0,0.5,0);
-
 
 void main() {
     

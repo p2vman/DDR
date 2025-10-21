@@ -1,0 +1,9 @@
+{
+  "type": "random",
+  "entries": [
+    {
+      "type": "static",
+      "model": "core:cube"
+    }
+  ]
+}

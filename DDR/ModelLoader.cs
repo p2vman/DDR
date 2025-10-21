@@ -18,6 +18,7 @@ public class ModelLoader
 {
     private IResourceMannager resourceMannager;
     public Dictionary<ResourceLocation, Model> Cache;
+    public Dictionary<ResourceLocation, ModelVariant> CacheVariants;
     public ResourceLocation Cube = ResourceLocation.ParseOrThrow("core:cube")
         .StartPrefix("models/")
         .EndPrefix(".json");
@@ -25,6 +26,7 @@ public class ModelLoader
     {
         this.resourceMannager = resourceMannager;
         Cache = new Dictionary<ResourceLocation, Model>();
+        CacheVariants = new Dictionary<ResourceLocation, ModelVariant>();
     }
         
     public Model Load(ResourceLocation location)
@@ -78,5 +80,36 @@ public class ModelLoader
         }
 
         return new Model(indices.ToArray(), vertices.ToArray());
+    }
+    
+    public ModelVariant LoadVariant(ResourceLocation location)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+        if (CacheVariants.ContainsKey(location))
+        {
+            return CacheVariants[location];
+        }
+        return CacheVariants[location] = LoadVariant(resourceMannager.ReadToEndOrThrow(resourceMannager[location
+            .StartPrefix("model_variants/")
+            .EndPrefix(".json")
+        ] ?? resourceMannager.GetResourceOrThrow(Cube)));
+    }
+    
+    public ModelVariant LoadVariant(string text)
+    {
+        var obj = JsonSerializer.CreateDefault()
+            .Deserialize<ModelVariantRaw>(new JsonTextReader(new System.IO.StringReader(text)));
+        
+        
+        var variants = new Dictionary<string, Model>();
+        foreach (var element in obj.Variants)
+        {
+           variants.Add(element.Key, Load(ResourceLocation.ParseOrThrow(element.Value)));
+        }
+
+        return new ModelVariant()
+        {
+            Variants = variants,
+        };
     }
 }
