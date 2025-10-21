@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="5.0.0-2.final" />
       <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
       <PackageReference Include="NLog" Version="6.0.5" />
       <PackageReference Include="OpenTK" Version="5.0.0-pre.15" />
@@ -16,5 +17,12 @@
       <PackageReference Include="OpenTK.Windowing.Common" Version="5.0.0-pre.15" />
       <PackageReference Include="OpenTK.Windowing.Desktop" Version="5.0.0-pre.15" />
     </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="assets\**\*.cs" />
+        
+        <None Include="assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 
 </Project>

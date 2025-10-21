@@ -22,6 +22,10 @@ public class Camera
         front.Z = MathF.Sin(MathHelper.DegreesToRadians(yaw)) * MathF.Cos(MathHelper.DegreesToRadians(pitch));
         CameraFront = Vector3.Normalize(front);
     }
-    
-    
+
+
+    public void UpdateCameraVectors(double yaw, double pitch)
+    {
+        UpdateCameraVectors((float)yaw, (float)pitch);
+    }
 }

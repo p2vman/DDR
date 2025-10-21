@@ -1,4 +1,10 @@
 
+using System.CodeDom.Compiler;
+using System.Diagnostics;
+using System.Numerics;
+using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.Scripting;
+using Microsoft.CSharp;
 using Newtonsoft.Json;
 
 namespace DDR;
@@ -22,8 +28,10 @@ public class ModelLoader
     public ResourceLocation Cube = ResourceLocation.ParseOrThrow("core:cube")
         .StartPrefix("models/")
         .EndPrefix(".json");
+    
     public ModelLoader(IResourceMannager resourceMannager)
     {
+        ArgumentNullException.ThrowIfNull(resourceMannager);
         this.resourceMannager = resourceMannager;
         Cache = new Dictionary<ResourceLocation, Model>();
         CacheVariants = new Dictionary<ResourceLocation, ModelVariant>();
@@ -44,6 +52,7 @@ public class ModelLoader
 
     public Model Load(string text)
     {
+        ArgumentNullException.ThrowIfNull(text);
         var obj = JsonSerializer.CreateDefault()
             .Deserialize<JsonModel>(new JsonTextReader(new System.IO.StringReader(text)));
         
@@ -52,6 +61,7 @@ public class ModelLoader
         var indices = new List<uint>();
         uint vertexOffset = 0;
 
+        Debug.Assert(obj != null, nameof(obj) + " != null");
         foreach (var element in obj.elements)
         {
             var f = element.from;
@@ -97,11 +107,13 @@ public class ModelLoader
     
     public ModelVariant LoadVariant(string text)
     {
+        ArgumentNullException.ThrowIfNull(text);
         var obj = JsonSerializer.CreateDefault()
             .Deserialize<ModelVariantRaw>(new JsonTextReader(new System.IO.StringReader(text)));
         
         
         var variants = new Dictionary<string, Model>();
+        Debug.Assert(obj != null, nameof(obj) + " != null");
         foreach (var element in obj.Variants)
         {
            variants.Add(element.Key, Load(ResourceLocation.ParseOrThrow(element.Value)));
@@ -110,6 +122,33 @@ public class ModelLoader
         return new ModelVariant()
         {
             Variants = variants,
+        };
+    }
+    
+    public ModelVariant LoadVariantCs(ResourceLocation location)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+        if (CacheVariants.ContainsKey(location))
+        {
+            return CacheVariants[location];
+        }
+        return CacheVariants[location] = LoadVariantCs(resourceMannager.ReadToEndOrThrow(resourceMannager[location
+            .StartPrefix("model_variants/")
+            .EndPrefix(".cs")
+        ] ?? resourceMannager.GetResourceOrThrow(Cube)));
+    }
+    
+    public ModelVariant LoadVariantCs(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        
+        var options = ScriptOptions.Default
+            .AddReferences(typeof(Model).Assembly, typeof(ModelBuilder).Assembly)
+            .AddImports("System", "DDR", "System.Collections.Generic");
+       
+        return new ModelVariant()
+        {
+            Variants = CSharpScript.EvaluateAsync<Dictionary<string, Model>>(text, options).GetAwaiter().GetResult(),
         };
     }
 }

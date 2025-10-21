@@ -3,8 +3,8 @@
   "credit": "Made with Blockbench",
   "elements": [
     {
-      "from": [0, 0, -32],
-      "to": [16, 16, 32],
+      "from": [0, 0, -128],
+      "to": [16, 16, 708],
       "rotation": {"angle": 0, "axis": "y", "origin": [7, 0, 0]},
       "color": 6,
       "faces": {

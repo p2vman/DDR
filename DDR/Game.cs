@@ -26,10 +26,13 @@ public class Game : GameWindow
         Resize += OnResize;
         ResourceMannager = new DevResourceMannager("../../../assets");
         ModelLoader = new ModelLoader(ResourceMannager);
-        camera = new Camera();
+        camera = new Camera()
+        {
+            Position = new Vector3((float)-3.3107831, (float)5.9009223, (float)-7.9504223)
+        };
         player = new Player()
         {
-            Model = ModelLoader.LoadVariant(ResourceLocation.ParseOrThrow("core:player")),
+            Model = ModelLoader.LoadVariantCs(ResourceLocation.ParseOrThrow("core:player")),
             Position = new Vector3(0, 1, 0),
             AABB = new AABB()
             {
@@ -41,8 +44,6 @@ public class Game : GameWindow
     }
     
     public Shader WorldShader { get; private set; }
-
-    private Stopwatch sw;
     protected override void OnLoad()
     {
         GL.Enable(EnableCap.DepthTest);
@@ -56,7 +57,7 @@ public class Game : GameWindow
         });
         
         CursorState = CursorState.Grabbed;
-        sw = Stopwatch.StartNew();
+        UpdateFrequency = 30;
         base.OnLoad();
     }
     
@@ -71,8 +72,6 @@ public class Game : GameWindow
     private float _speed = 12.5f;
     private float _sensitivity = 0.1f;
     private Vector2 _lastMousePos;
-    const double tickInterval = 1000.0 / 30.0;
-
     private long ticks = 0;
 
     private void Tick()
@@ -88,16 +87,18 @@ public class Game : GameWindow
         {
             player.state = "idle";
         }
+
+        if (ticks % 10 == 0)
+        {
+            WorldLayer = WorldLayer.OrderBy(o => o.Model._vao).ToList();
+        }
+        
+        camera.Position = player.Position + new Vector3((float)-3.3107831, (float)5.9009223, (float)-7.9504223);
     }
     
     protected override void OnUpdateFrame(FrameEventArgs args)
     {
-        if (sw.ElapsedMilliseconds >= tickInterval)
-        {
-            sw.Restart();
-            Tick();
-        }
-        
+        Tick();
         
         if (KeyboardState.IsKeyPressed(Keys.Escape))
         {
@@ -146,8 +147,8 @@ public class Game : GameWindow
         if (KeyboardState.IsKeyDown(Keys.Space)) camera.Position += new Vector3(0, 1, 0) * velocity / 2;
         if (KeyboardState.IsKeyDown(Keys.LeftShift)) camera.Position += new Vector3(0, -1, 0) * velocity / 2;
         
-        camera.UpdateCameraVectors(_yaw, _pitch);
-        //log.Info("pitch: " + _pitch + " yaw: " + _yaw);
+        camera.UpdateCameraVectors(76.10004, -23.299994);
+        
         base.OnUpdateFrame(args);
     }
     
@@ -170,6 +171,7 @@ public class Game : GameWindow
         var color = GL.GetUniformLocation(WorldShader.Handle, "color");
 
 
+        Model _model = null;
         foreach (var GObject in WorldLayer)
         {
             
@@ -180,9 +182,13 @@ public class Game : GameWindow
             GL.Uniform3f(world_position, 1, ref GObject.Position);
             GL.Uniform3f(color, 1, ref _color);
             
-            GL.BindVertexArray(GObject.Model._vao);
+            if (GObject.Model != _model)
+            {
+                GL.BindVertexArray(GObject.Model._vao);
+                _model = GObject.Model;
+            }
 
-            GL.DrawElements(PrimitiveType.LineStrip, GObject.Model.indices.Length*2, DrawElementsType.UnsignedInt, 0);
+            GL.DrawElements(PrimitiveType.Triangles, GObject.Model.indices.Length, DrawElementsType.UnsignedInt, 0);
         }
 
         {
@@ -197,7 +203,7 @@ public class Game : GameWindow
             
             GL.BindVertexArray(model._vao);
 
-            GL.DrawElements(PrimitiveType.LineStrip, model.indices.Length*2, DrawElementsType.UnsignedInt, 0);
+            GL.DrawElements(PrimitiveType.Triangles, model.indices.Length, DrawElementsType.UnsignedInt, 0);
         }
         
         SwapBuffers();
