@@ -1,10 +1,11 @@
+using DDR.Obejct;
 using NLog;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace DDR;
 
-public class Player : GameObject
+public class Player : GameObject, IColisedObject
 {
     private static readonly Logger log = LogManager.GetCurrentClassLogger();
     public string state = "idle";

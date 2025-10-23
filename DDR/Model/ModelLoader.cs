@@ -2,6 +2,7 @@
 using System.CodeDom.Compiler;
 using System.Diagnostics;
 using System.Numerics;
+using DDR.Model;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.CSharp;
@@ -23,7 +24,7 @@ public class JsonModel
 public class ModelLoader
 {
     private IResourceMannager resourceMannager;
-    public Dictionary<ResourceLocation, Model> Cache;
+    public Dictionary<ResourceLocation, Model.Model> Cache;
     public Dictionary<ResourceLocation, ModelVariant> CacheVariants;
     public ResourceLocation Cube = ResourceLocation.ParseOrThrow("core:cube")
         .StartPrefix("models/")
@@ -33,11 +34,11 @@ public class ModelLoader
     {
         ArgumentNullException.ThrowIfNull(resourceMannager);
         this.resourceMannager = resourceMannager;
-        Cache = new Dictionary<ResourceLocation, Model>();
+        Cache = new Dictionary<ResourceLocation, Model.Model>();
         CacheVariants = new Dictionary<ResourceLocation, ModelVariant>();
     }
         
-    public Model Load(ResourceLocation location)
+    public Model.Model Load(ResourceLocation location)
     {
         ArgumentNullException.ThrowIfNull(location);
         if (Cache.ContainsKey(location))
@@ -50,7 +51,7 @@ public class ModelLoader
         ] ?? resourceMannager.GetResourceOrThrow(Cube)));
     }
 
-    public Model Load(string text)
+    public Model.Model Load(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
         var obj = JsonSerializer.CreateDefault()
@@ -89,7 +90,7 @@ public class ModelLoader
             vertexOffset += 8;
         }
 
-        return new Model(indices.ToArray(), vertices.ToArray());
+        return new Model.Model(indices.ToArray(), vertices.ToArray());
     }
     
     public ModelVariant LoadVariant(ResourceLocation location)
@@ -112,7 +113,7 @@ public class ModelLoader
             .Deserialize<ModelVariantRaw>(new JsonTextReader(new System.IO.StringReader(text)));
         
         
-        var variants = new Dictionary<string, Model>();
+        var variants = new Dictionary<string, Model.Model>();
         Debug.Assert(obj != null, nameof(obj) + " != null");
         foreach (var element in obj.Variants)
         {
@@ -143,12 +144,12 @@ public class ModelLoader
         ArgumentNullException.ThrowIfNull(text);
         
         var options = ScriptOptions.Default
-            .AddReferences(typeof(Model).Assembly, typeof(ModelBuilder).Assembly)
+            .AddReferences(typeof(Model.Model).Assembly, typeof(ModelBuilder).Assembly)
             .AddImports("System", "DDR", "System.Collections.Generic");
        
         return new ModelVariant()
         {
-            Variants = CSharpScript.EvaluateAsync<Dictionary<string, Model>>(text, options).GetAwaiter().GetResult(),
+            Variants = CSharpScript.EvaluateAsync<Dictionary<string, Model.Model>>(text, options).GetAwaiter().GetResult(),
         };
     }
 }

@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="OpenTK" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Audio" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Core" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Graphics" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Mathematics" Version="5.0.0-pre.15" />
+      <PackageReference Include="OpenTK.Windowing.Common" Version="5.0.0-pre.15" />
+    </ItemGroup>
+
+</Project>

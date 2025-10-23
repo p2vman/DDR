@@ -1,9 +1,5 @@
 {
-  "type": "random",
-  "entries": [
-    {
-      "type": "static",
-      "model": "core:cube"
-    }
-  ]
+  "Variants": {
+    "0": "core:cactus_0"
+  }
 }

@@ -1,13 +1,29 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 
-namespace DDR;
+namespace DDR.Model;
 
-public class Model
+
+public interface IModel
 {
-    public uint[] indices;
-    public float[] vertices;
-    public int _vao, _vbo, _ebo;
+    public uint[] indices {get; set;}
+    public float[] vertices {get; set;}
+    public int _vao {get; set;}
+    public int _vbo {get; set;}
+    public int _ebo {get; set;}
+}
+public interface IModelAccess
+{
+    IModel GetModel(string name);
+}
+
+public class Model : IModelAccess, IModel
+{
+    public uint[] indices {get; set;}
+    public float[] vertices {get; set;}
+    public int _vao {get; set;}
+    public int _vbo {get; set;}
+    public int _ebo {get; set;}
 
     public Model(uint[] indices, float[] vertices)
     {
@@ -30,13 +46,38 @@ public class Model
         GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
         GL.EnableVertexAttribArray(0);
     }
+
+    public IModel GetModel(string name)
+    {
+        return this;
+    }
+    
+    public static Model FromAabb(AABB aabb)
+    {
+        return new Model([
+            0,1,2,2,3,0,  4,5,6,6,7,4,
+            0,1,5,5,4,0,  2,3,7,7,6,2,
+            0,3,7,7,4,0,  1,2,6,6,5,1
+        ], [
+            aabb.Min.X, aabb.Min.Y, aabb.Min.Z, // 0
+            aabb.Max.X, aabb.Min.Y, aabb.Min.Z, // 1
+            aabb.Max.X, aabb.Max.Y, aabb.Min.Z, // 2
+            aabb.Min.X, aabb.Max.Y, aabb.Min.Z, // 3
+            aabb.Min.X, aabb.Min.Y, aabb.Max.Z, // 4
+            aabb.Max.X, aabb.Min.Y, aabb.Max.Z, // 5
+            aabb.Max.X, aabb.Max.Y, aabb.Max.Z, // 6
+            aabb.Min.X, aabb.Max.Y, aabb.Max.Z // 7
+        ]);
+    }
 }
 
-public class ModelGroup
+public class ModelGroup : IModelAccess, IModel
 {
-    public uint[] indices;
-    public float[] vertices;
-    public int _vao, _vbo, _ebo;
+    public uint[] indices {get; set;}
+    public float[] vertices {get; set;}
+    public int _vao {get; set;}
+    public int _vbo {get; set;}
+    public int _ebo {get; set;}
     
     public ModelGroup(Model[] models)
     {
@@ -78,6 +119,11 @@ public class ModelGroup
         GL.EnableVertexAttribArray(0);
 
         GL.BindVertexArray(0);
+    }
+    
+    public IModel GetModel(string name)
+    {
+        return this;
     }
 }
 

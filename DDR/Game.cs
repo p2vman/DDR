@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using DDR.Model;
+using DDR.Obejct;
 using NLog;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -14,9 +16,11 @@ public class Game : GameWindow
     public IResourceMannager ResourceMannager { get; private set; }
     public ModelLoader ModelLoader { get; private set; }
     public List<GameObject> WorldLayer = [];
+    public List<GameObject> ObjectLayer = [];
     
     public Camera camera;
     public Player player;
+    
     public Game()
         : base(GameWindowSettings.Default, new NativeWindowSettings()
         {
@@ -32,7 +36,7 @@ public class Game : GameWindow
         };
         player = new Player()
         {
-            Model = ModelLoader.LoadVariantCs(ResourceLocation.ParseOrThrow("core:player")),
+            Model = ModelLoader.LoadVariant(ResourceLocation.ParseOrThrow("core:player")),
             Position = new Vector3(0, 1, 0),
             AABB = new AABB()
             {
@@ -55,7 +59,8 @@ public class Game : GameWindow
             Position = new Vector3(0, 0, 0),
             Model = ModelLoader.Load(ResourceLocation.ParseOrThrow("core:world"))
         });
-        
+
+        WorldLayer.Add(new Detector(new Vector3(0, 1, -1), new AABB(new Vector3(0, 0, 0), new Vector3(1, 2, (float)0.5))));
         CursorState = CursorState.Grabbed;
         UpdateFrequency = 30;
         base.OnLoad();
@@ -87,13 +92,13 @@ public class Game : GameWindow
         {
             player.state = "idle";
         }
-
-        if (ticks % 10 == 0)
-        {
-            WorldLayer = WorldLayer.OrderBy(o => o.Model._vao).ToList();
-        }
         
-        camera.Position = player.Position + new Vector3((float)-3.3107831, (float)5.9009223, (float)-7.9504223);
+        //camera.Position = player.Position + new Vector3((float)-3.3107831, (float)5.9009223, (float)-7.9504223);
+
+        ObjectLayer.ForEach(o =>
+        {
+            o.Position.Z--;
+        });
     }
     
     protected override void OnUpdateFrame(FrameEventArgs args)
@@ -147,7 +152,8 @@ public class Game : GameWindow
         if (KeyboardState.IsKeyDown(Keys.Space)) camera.Position += new Vector3(0, 1, 0) * velocity / 2;
         if (KeyboardState.IsKeyDown(Keys.LeftShift)) camera.Position += new Vector3(0, -1, 0) * velocity / 2;
         
-        camera.UpdateCameraVectors(76.10004, -23.299994);
+        //camera.UpdateCameraVectors(76.10004, -23.299994);
+        camera.UpdateCameraVectors(_yaw, _pitch);
         
         base.OnUpdateFrame(args);
     }
@@ -171,7 +177,7 @@ public class Game : GameWindow
         var color = GL.GetUniformLocation(WorldShader.Handle, "color");
 
 
-        Model _model = null;
+        IModel _model = null;
         foreach (var GObject in WorldLayer)
         {
             
@@ -184,11 +190,11 @@ public class Game : GameWindow
             
             if (GObject.Model != _model)
             {
-                GL.BindVertexArray(GObject.Model._vao);
-                _model = GObject.Model;
+                GL.BindVertexArray(GObject.Model.GetModel(GObject.State)._vao);
+                _model = GObject.Model.GetModel(GObject.State);
             }
 
-            GL.DrawElements(PrimitiveType.Triangles, GObject.Model.indices.Length, DrawElementsType.UnsignedInt, 0);
+            GL.DrawElements(PrimitiveType.LineStrip, _model.indices.Length, DrawElementsType.UnsignedInt, 0);
         }
 
         {
@@ -203,7 +209,16 @@ public class Game : GameWindow
             
             GL.BindVertexArray(model._vao);
 
-            GL.DrawElements(PrimitiveType.Triangles, model.indices.Length, DrawElementsType.UnsignedInt, 0);
+            GL.DrawElements(PrimitiveType.LineStrip, model.indices.Length, DrawElementsType.UnsignedInt, 0);
+        }
+        
+        foreach (var GObject in WorldLayer)
+        {
+            GL.Uniform3f(world_position, 1, ref GObject.Position);
+            if (GObject is IColisedObject o)
+            {
+                o.Draw();
+            }
         }
         
         SwapBuffers();

@@ -22,6 +22,18 @@
         <Compile Remove="assets\**\*.cs" />
         
         <None Include="assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+
+        <None Update="assets\core\shaders\hitbox\vertex.glsl">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        
+        <None Update="assets\core\shaders\hitbox\fragment.glsl">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\LGL\LGL.csproj" />
     </ItemGroup>
 
 
