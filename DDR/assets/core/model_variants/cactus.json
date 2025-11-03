@@ -1,5 +1,9 @@
 {
   "Variants": {
-    "0": "core:cactus_0"
+    "0": "core:cactus_0",
+    "1": "core:cactus_1",
+    "2": "core:cactus_2",
+    "3": "core:cactus_3",
+    "4": "core:cactus_4"
   }
 }

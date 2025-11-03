@@ -19,4 +19,7 @@ public struct AABB
                (Min.Y <= other.Max.Y && Max.Y >= other.Min.Y) &&
                (Min.Z <= other.Max.Z && Max.Z >= other.Min.Z);
     }
+    
+    public Vector3 Size => Max - Min;
+    public Vector3 Center => (Min + Max) * 0.5f;
 }

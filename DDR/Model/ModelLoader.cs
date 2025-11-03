@@ -1,11 +1,6 @@
-
-using System.CodeDom.Compiler;
 using System.Diagnostics;
+using System.Globalization;
 using System.Numerics;
-using DDR.Model;
-using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.Scripting;
-using Microsoft.CSharp;
 using Newtonsoft.Json;
 
 namespace DDR;
@@ -49,6 +44,85 @@ public class ModelLoader
             .StartPrefix("models/")
             .EndPrefix(".json")
         ] ?? resourceMannager.GetResourceOrThrow(Cube)));
+    }
+    
+    public Model.Model LoadObj(ResourceLocation location)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+        if (Cache.ContainsKey(location))
+        {
+            return Cache[location];
+        }
+        return Cache[location] = LoadObj(resourceMannager.ReadToEndOrThrow(resourceMannager[location
+            .StartPrefix("models/")
+            .EndPrefix(".obj")
+        ] ?? resourceMannager.GetResourceOrThrow(Cube)));
+    }
+    
+    public Model.Model LoadObj(string text)
+    {
+        var vertices = new List<Vector3>();
+        var indices = new List<uint>();
+
+        foreach (var rawLine in text.Split('\n'))
+        {
+            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+            var line = rawLine.Trim();
+            
+            if (line.StartsWith("#") || line.StartsWith("o ") || line.StartsWith("g ") ||
+                line.StartsWith("s ") || line.StartsWith("usemtl ") || line.StartsWith("mtllib ")) continue;
+
+            if (line.StartsWith("v "))
+            {
+                var p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (p.Length < 4) continue;
+
+                float x = float.Parse(p[1], CultureInfo.InvariantCulture);
+                float y = float.Parse(p[2], CultureInfo.InvariantCulture);
+                float z = float.Parse(p[3], CultureInfo.InvariantCulture);
+
+                vertices.Add(new Vector3(x, y, z));
+            }
+            else if (line.StartsWith("f "))
+            {
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 4) continue;
+
+                var faceIndices = new List<uint>();
+                for (int i = 1; i < parts.Length; i++)
+                {
+                    var token = parts[i];
+                    if (string.IsNullOrWhiteSpace(token)) continue;
+
+                    var split = token.Split('/');
+                    if (!int.TryParse(split[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int idx)) continue;
+
+                    int vertexIndex = idx < 0 ? vertices.Count + idx : idx - 1;
+                    if (vertexIndex < 0 || vertexIndex >= vertices.Count)
+                        throw new InvalidDataException($"Invalid vertex index {idx} in line: {line}");
+
+                    faceIndices.Add((uint)vertexIndex);
+                }
+                
+                for (int i = 1; i < faceIndices.Count - 1; i++)
+                {
+                    indices.Add(faceIndices[0]);
+                    indices.Add(faceIndices[i]);
+                    indices.Add(faceIndices[i + 1]);
+                }
+            }
+        }
+
+        var arr = new float[vertices.Count * 3];
+        for (var i = 0; i < vertices.Count; i++)
+        {
+            var v = vertices[i];
+            var j = i * 3;
+            arr[j] = v.X;
+            arr[j + 1] = v.Y;
+            arr[j + 2] = v.Z;
+        }
+        return new Model.Model(indices.ToArray(), arr);
     }
 
     public Model.Model Load(string text)
@@ -124,32 +198,5 @@ public class ModelLoader
         {
             Variants = variants,
         };
-    }
-    
-    public ModelVariant LoadVariantCs(ResourceLocation location)
-    {
-        ArgumentNullException.ThrowIfNull(location);
-        if (CacheVariants.ContainsKey(location))
-        {
-            return CacheVariants[location];
-        }
-        return CacheVariants[location] = LoadVariantCs(resourceMannager.ReadToEndOrThrow(resourceMannager[location
-            .StartPrefix("model_variants/")
-            .EndPrefix(".cs")
-        ] ?? resourceMannager.GetResourceOrThrow(Cube)));
-    }
-    
-    public ModelVariant LoadVariantCs(string text)
-    {
-        ArgumentNullException.ThrowIfNull(text);
-        
-        var options = ScriptOptions.Default
-            .AddReferences(typeof(Model.Model).Assembly, typeof(ModelBuilder).Assembly)
-            .AddImports("System", "DDR", "System.Collections.Generic");
-       
-        return new ModelVariant()
-        {
-            Variants = CSharpScript.EvaluateAsync<Dictionary<string, Model.Model>>(text, options).GetAwaiter().GetResult(),
-        };
-    }
+    }   
 }

@@ -1,5 +1,5 @@
-using System.Numerics;
 using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
 
 namespace DDR.Model;
 
@@ -24,6 +24,45 @@ public class Model : IModelAccess, IModel
     public int _vao {get; set;}
     public int _vbo {get; set;}
     public int _ebo {get; set;}
+    
+    public Model ApplyMatrix(Matrix4 mat)
+    {
+        for (int i = 0; i < vertices.Length; i += 3)
+        {
+            Vector3 v = new Vector3(vertices[i], vertices[i + 1], vertices[i + 2]); // гомогенные координаты
+            Vector3 tv = Vector3.TransformPosition(v, mat);
+            vertices[i]     = tv.X;
+            vertices[i + 1] = tv.Y;
+            vertices[i + 2] = tv.Z;
+        }
+        return this;
+    }
+
+    public static AABB ComputeAABB(float[] vertices)
+    {
+        if (vertices == null || vertices.Length < 3)
+            throw new ArgumentException("Vertices array is empty or invalid.");
+
+        Vector3 min = new Vector3(float.MaxValue);
+        Vector3 max = new Vector3(float.MinValue);
+
+        for (int i = 0; i < vertices.Length; i += 3)
+        {
+            var v = new Vector3(vertices[i], vertices[i + 1], vertices[i + 2]);
+
+            if (v.X < min.X) min.X = v.X;
+            if (v.Y < min.Y) min.Y = v.Y;
+            if (v.Z < min.Z) min.Z = v.Z;
+
+            if (v.X > max.X) max.X = v.X;
+            if (v.Y > max.Y) max.Y = v.Y;
+            if (v.Z > max.Z) max.Z = v.Z;
+        }
+
+        return new AABB(min, max);
+    }
+
+
 
     public Model(uint[] indices, float[] vertices)
     {

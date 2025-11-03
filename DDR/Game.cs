@@ -12,23 +12,34 @@ namespace DDR;
 
 public class Game : GameWindow
 {
+    Random random = new Random();
     private static readonly Logger log = LogManager.GetCurrentClassLogger();
     public IResourceMannager ResourceMannager { get; private set; }
     public ModelLoader ModelLoader { get; private set; }
     public List<GameObject> WorldLayer = [];
     public List<GameObject> ObjectLayer = [];
-    
+
+    public float Speed
+    {
+        get => _speed;
+        set => _speed = value;
+    }
+
     public Camera camera;
     public Player player;
     
     public Game()
         : base(GameWindowSettings.Default, new NativeWindowSettings()
         {
-            Size = new Vector2i(800, 600), Title = "Game", Flags = ContextFlags.Default, Vsync = VSyncMode.On
+            Size = new Vector2i(800, 600), 
+            Title = "Game", 
+            Flags = ContextFlags.Default, 
+            Vsync = VSyncMode.On,
+            DepthBits = 24
         })
     {
         Resize += OnResize;
-        ResourceMannager = new DevResourceMannager("../../../assets");
+        ResourceMannager = new DevResourceMannager("./assets");
         ModelLoader = new ModelLoader(ResourceMannager);
         camera = new Camera()
         {
@@ -40,30 +51,81 @@ public class Game : GameWindow
             Position = new Vector3(0, 1, 0),
             AABB = new AABB()
             {
-                Min = new Vector3(-1, 0, -1),
-                Max = new Vector3(1, 1, 1),
+                Min = new Vector3(0.2f, 0, 00.1f),
+                Max = new Vector3(0.8f, 0.5f, 0.8f),
             },
-            Velocity = new Vector3(0, 0, (float)0.01)
+            Velocity = new Vector3(0, 0, 0)
         };
+        UpdateFrequency = 30;
     }
+
+    public void UpdateCactusFlow()
+    {
+        int cactusAhead = ObjectLayer.Count(o => o is Cactus && o.Position.Z > player.Position.Z);
+        
+        if (cactusAhead < 100)
+        {
+            int need = 100 - cactusAhead;
+
+            for (int i = 0; i < need; i++)
+            {
+                float x = random.NextSingle() * 10f - 5f;
+                float z = player.Position.Z + 30f + random.NextSingle() * 80f;
+
+                var pos = new Vector3(x, 1f, z);
+
+                var cactus = new Cactus(Cactus.CactusType.C_0, pos)
+                {
+                    Model = ModelLoader.LoadVariant(ResourceLocation.ParseOrThrow("core:cactus")),
+                    Velocity = u + 0
+                };
+
+                var keys = ((ModelVariant)cactus.Model).Variants.Keys;
+                cactus.State = keys.ElementAt(random.Next(keys.Count));
+                cactus.AABB = Model.Model.ComputeAABB(cactus.Model.GetModel(cactus.State).vertices);
+
+                ObjectLayer.Add(cactus);
+            }
+        }
+    }
+
+
+
     
     public Shader WorldShader { get; private set; }
     protected override void OnLoad()
     {
         GL.Enable(EnableCap.DepthTest);
+        GL.Enable(EnableCap.CullFace);
+        GL.CullFace(TriangleFace.Back);
+        GL.FrontFace(FrontFaceDirection.Ccw);
         
         WorldShader = new Shader(ResourceMannager.ReadToEndOrThrow(ResourceMannager["core:shaders/world/vertex.glsl"]), ResourceMannager.ReadToEndOrThrow(ResourceMannager["core:shaders/world/fragment.glsl"]), ResourceMannager);
-
-        WorldLayer.Add(new StaticObject()
-        {
-            Position = new Vector3(0, 0, 0),
-            Model = ModelLoader.Load(ResourceLocation.ParseOrThrow("core:world"))
-        });
-
-        WorldLayer.Add(new Detector(new Vector3(0, 1, -1), new AABB(new Vector3(0, 0, 0), new Vector3(1, 2, (float)0.5))));
+        
+        Gen();
+        
         CursorState = CursorState.Grabbed;
-        UpdateFrequency = 30;
         base.OnLoad();
+    }
+
+    public void Gen()
+    {
+        u = new Vector3(0, 0, -(0.1f * 16f));
+        //WorldLayer.Add(new StaticObject()
+        //{
+        //    Position = new Vector3(0, 0, 0),
+        //    Model = ModelLoader.Load(ResourceLocation.ParseOrThrow("core:world"))
+        //});
+        ObjectLayer.Add(new Detector(new Vector3(0, 1, -4),
+            new AABB(new Vector3(-9, 0, 0), new Vector3(4, 18, (float)0.5)),
+            o =>
+            {
+            //    o.Position += new Vector3(random.Next(4)-2, 0, 32+random.Next(25));
+            //    var keys = ((ModelVariant)o.Model).Variants.Keys;
+            //    o.State = keys.ElementAt(random.Next(keys.Count));
+            //    o.Position.X = Math.Max(Math.Min(o.Position.X, 5), -5);
+            ObjectLayer.Remove(o);
+            }));
     }
     
     private static void OnResize(ResizeEventArgs e)
@@ -79,31 +141,48 @@ public class Game : GameWindow
     private Vector2 _lastMousePos;
     private long ticks = 0;
 
+    public Vector3 u = new Vector3(0, 0, -(0.1f * 16f));
     private void Tick()
     {
+        
         ticks++;
         player.Tick(this);
+        UpdateCactusFlow();
 
         if (ticks % 30 == 0)
         {
-            player.state = "move";
+            //player.state = "move";
         }
         if (ticks % 20 == 0)
         {
             player.state = "idle";
         }
-        
-        //camera.Position = player.Position + new Vector3((float)-3.3107831, (float)5.9009223, (float)-7.9504223);
 
-        ObjectLayer.ForEach(o =>
+        camera.Position = Vector3.Lerp(camera.Position, player.Position + new Vector3(0.5f, 3, -3),  5f * (float)16/1000);
+        //camera.Position = player.Position + new Vector3(0.5f, 12, -12);
+
+        foreach (var o in ObjectLayer.ToArray())
         {
-            o.Position.Z--;
-        });
+            o.Tick(this);
+        }
+
+
+        if (ticks % 140 == 0)
+        {
+            u -= new Vector3(0, 00, (0.1f*16f) * 0.6f);
+            ObjectLayer.ForEach(o =>
+            {
+                if (o is Cactus)
+                {
+                    o.Velocity = u + 0;
+                }
+            });
+            
+        }
     }
     
     protected override void OnUpdateFrame(FrameEventArgs args)
     {
-        Tick();
         
         if (KeyboardState.IsKeyPressed(Keys.Escape))
         {
@@ -118,6 +197,14 @@ public class Game : GameWindow
 
         if (CursorState != CursorState.Grabbed)
             return;
+        
+        player.Update(this);
+        WorldLayer.ForEach(o =>
+        {
+            o.Update(this);
+        });
+    
+        Tick(); 
 
         var mouse = MousePosition;
         if (_firstMouse)
@@ -126,34 +213,11 @@ public class Game : GameWindow
             _firstMouse = false;
         }
 
-        var xOffset = mouse.X - _lastMousePos.X;
-        var yOffset = _lastMousePos.Y - mouse.Y;
-        _lastMousePos = mouse;
-
-        xOffset *= _sensitivity;
-        yOffset *= _sensitivity;
-
-        _yaw += xOffset;
-        _pitch += yOffset;
-        _pitch = Math.Clamp(_pitch, -89f, 89f);
-
-        Vector3 front;
-        front.X = MathF.Cos(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch));
-        front.Y = MathF.Sin(MathHelper.DegreesToRadians(_pitch));
-        front.Z = MathF.Sin(MathHelper.DegreesToRadians(_yaw)) * MathF.Cos(MathHelper.DegreesToRadians(_pitch));
-        camera.CameraFront = Vector3.Normalize(front);
-
-        var velocity = _speed * (float)args.Time;
-        if (KeyboardState.IsKeyDown(Keys.W)) camera.Position += camera.CameraFront * velocity;
-        if (KeyboardState.IsKeyDown(Keys.S)) camera.Position -= camera.CameraFront * velocity;
-        if (KeyboardState.IsKeyDown(Keys.A)) camera.Position -= Vector3.Normalize(Vector3.Cross(camera.CameraFront, camera.CameraUp)) * velocity;
-        if (KeyboardState.IsKeyDown(Keys.D)) camera.Position += Vector3.Normalize(Vector3.Cross(camera.CameraFront, camera.CameraUp)) * velocity;
         
-        if (KeyboardState.IsKeyDown(Keys.Space)) camera.Position += new Vector3(0, 1, 0) * velocity / 2;
-        if (KeyboardState.IsKeyDown(Keys.LeftShift)) camera.Position += new Vector3(0, -1, 0) * velocity / 2;
         
-        //camera.UpdateCameraVectors(76.10004, -23.299994);
-        camera.UpdateCameraVectors(_yaw, _pitch);
+        camera.UpdateCameraVectors(90.399994, -23.899998);
+        //camera.UpdateCameraVectors(_yaw, _pitch);
+        //log.Info(_yaw + ":" + _pitch);
         
         base.OnUpdateFrame(args);
     }
@@ -178,10 +242,11 @@ public class Game : GameWindow
 
 
         IModel _model = null;
+        int hash;
         foreach (var GObject in WorldLayer)
         {
+            var _color = new Vector3(1, 1, 1);
             
-            var _color = new Vector3(255, 255, 255);
         
             var objectMatrix = Matrix4.CreateTranslation(0, 0, 0);
             GL.UniformMatrix4f(loc, 1, false, ref objectMatrix);
@@ -196,31 +261,62 @@ public class Game : GameWindow
 
             GL.DrawElements(PrimitiveType.LineStrip, _model.indices.Length, DrawElementsType.UnsignedInt, 0);
         }
+        
+        foreach (var GObject in ObjectLayer)
+        {
+
+            if (GObject.Position.Length < 200)
+            {
+                hash = Math.Abs(GObject.GetHashCode());
+                var g = 0.5f + (hash % 128) / 255f;
+                var r = (hash >> 4 & 0x0F) / 255f;
+                var b = (hash >> 8 & 0x0F) / 255f;
+                var _color = new Vector3(r, g, b);
+        
+                var objectMatrix = Matrix4.CreateTranslation(0, 0, 0);
+                GL.UniformMatrix4f(loc, 1, false, ref objectMatrix);
+                GL.Uniform3f(world_position, 1, ref GObject.Position);
+                GL.Uniform3f(color, 1, ref _color);
+            
+                if (GObject.Model != _model)
+                {
+                    GL.BindVertexArray(GObject.Model.GetModel(GObject.State)._vao);
+                    _model = GObject.Model.GetModel(GObject.State);
+                }
+
+                GL.DrawElements(PrimitiveType.LineStrip, _model.indices.Length, DrawElementsType.UnsignedInt, 0);
+
+                //_color = new Vector3(200, 0, 0);
+                //GL.Uniform3f(color, 1, ref _color);
+                //if (GObject is IColisedObject o)
+                //{
+                //    var mod = Model.Model.FromAabb(o.AABB);
+                //    GL.BindVertexArray(mod._vao);
+                //    GL.DrawElements(PrimitiveType.LineStrip, mod.indices.Length, DrawElementsType.UnsignedInt, 0);
+                //}
+            }
+        }
 
         {
-            var _color = new Vector3(255, 0, 0);
-        
-            var objectMatrix = Matrix4.CreateTranslation(0, 0, 0);
-            GL.UniformMatrix4f(loc, 1, false, ref objectMatrix);
+            var _color = new Vector3(2, 200, 8);
+
+            GL.UniformMatrix4f(loc, 1, false, ref player.Transform);
             GL.Uniform3f(world_position, 1, ref player.Position);
             GL.Uniform3f(color, 1, ref _color);
-            
+
             var model = player.Model.Variants[player.state];
-            
+
             GL.BindVertexArray(model._vao);
 
             GL.DrawElements(PrimitiveType.LineStrip, model.indices.Length, DrawElementsType.UnsignedInt, 0);
+
+            //_color = new Vector3(200, 0, 0);
+            //GL.Uniform3f(color, 1, ref _color);
+            //var mod = Model.Model.FromAabb(player.AABB);
+            //GL.BindVertexArray(mod._vao);
+            //GL.DrawElements(PrimitiveType.LineStrip, mod.indices.Length, DrawElementsType.UnsignedInt, 0);
         }
-        
-        foreach (var GObject in WorldLayer)
-        {
-            GL.Uniform3f(world_position, 1, ref GObject.Position);
-            if (GObject is IColisedObject o)
-            {
-                o.Draw();
-            }
-        }
-        
+
         SwapBuffers();
         base.OnRenderFrame(args);
     }

@@ -102,7 +102,7 @@ public class Preprocessor(IResourceMannager resourceMannager)
     }
 }
 
-public class Shader
+public class Shader : IDisposable
 {
     public int Handle;
     public Shader(string vertex, string fragment, IResourceMannager resourceMannager)
@@ -149,6 +149,11 @@ public class Shader
     {
         GL.Uniform3f(GL.GetUniformLocation(Handle, name), 1, ref vec);
     }
+
+    public int GetUniformLocation(string name)
+    {
+        return GL.GetUniformLocation(Handle, name);
+    }
     
     public void SetQuaternion(string name, Quaternion quaternion)
     {
@@ -158,5 +163,11 @@ public class Shader
             quaternion.Z, 
             quaternion.W
         );
+    }
+
+    public void Dispose()
+    {
+        GL.DeleteProgram(Handle);
+        Handle = 0;
     }
 }
